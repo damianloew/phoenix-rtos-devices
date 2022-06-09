@@ -25,6 +25,7 @@ typedef struct {
 	unsigned int id;     /* device identifier */
 	sensor_type_t types; /* supported sensor types */
 	const char *drv;     /* device driver name */
+	const char *srcdev;  /* path to source device with communication interface */
 	void *ctx;           /* internal context for a specific sensor */
 
 	idnode_t node;

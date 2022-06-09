@@ -4,66 +4,150 @@
  * Driver for GPS module PA6H
  *
  * Copyright 2022 Phoenix Systems
- * Author: Damian Loewnau
+ * Author: Damian Loewnau, Mateusz Niewiadomski
  *
  * This file is part of Phoenix-RTOS.
  *
  * %LICENSE%
  */
 
-#include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <math.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/threads.h>
 
 #include "../sensors.h"
+#include "nmea.h"
 
 
 typedef struct {
 	sensor_event_t evtGps;
-	char stack[512] __attribute__((aligned(8)));
+	handle_t lock;
+	FILE *srcdevfile;
+	char measureStack[2048] __attribute__((aligned(8)));
+	char publishStack[512] __attribute__((aligned(8)));
 } pa6h_ctx_t;
-
-
-static inline time_t pa6h_timeMsGet(void)
-{
-	time_t now;
-	gettime(&now, NULL);
-
-	return now / 1000;
-}
 
 
 static void pa6h_threadPublish(void *data)
 {
 	sensor_info_t *info = (sensor_info_t *)data;
 	pa6h_ctx_t *ctx = info->ctx;
+	while (1) {
+		usleep(500000);
+		mutexLock(ctx->lock);
+		sensors_publish(info->id, &ctx->evtGps);
+		mutexUnlock(ctx->lock);
+	}
+}
+
+
+/* TODO: remove */
+void print_gps_data(gps_data_t *data)
+{
+	printf("lat/lon | hdop:\t%d/%d | %d\n", data->lat, data->lon, data->hdop);
+	printf("asl/wgs | vdop:\t%d/%d | %d\n", data->alt, data->altEllipsoid, data->vdop);
+	printf("kmh/kmhN/kmhE:\t%d/%d/%d\n", data->groundSpeed, data->velNorth, data->velEast);
+	printf("hdop/vdop/sats:\t%d/%d/%d\n", data->hdop, data->vdop, data->satsNb);
+	printf("\n");
+}
+
+
+static int pa6h_getlines(char **buf)
+{
+	int n = 0;
+	char *start, *curr;
+
+	start = strchr(*buf, '$');
+	if (start == NULL) {
+		return 0;
+	}
+
+	curr = start;
+	do {
+		curr = strchr(curr, '$');
+		if (curr != NULL) {
+			curr = strchr(curr, '*');
+		}
+
+		n++;
+	} while (curr != NULL);
+	n--;
+
+	if (n > 0) {
+		*buf = start;
+	}
+
+	return n;
+}
+
+
+int pa6h_update(nmea_t *message, pa6h_ctx_t *ctx)
+{
+	mutexLock(ctx->lock);
+	switch (message->type) {
+		case nmea_gga:
+			ctx->evtGps.gps.lat = message->msg.gga.lat * 1e7;
+			ctx->evtGps.gps.lon = message->msg.gga.lon * 1e7;
+			ctx->evtGps.gps.hdop = (unsigned int)(message->msg.gga.hdop * 1e2);
+			//ctx->evtGps.gps.fix = message->msg.gga.fix;
+			ctx->evtGps.gps.alt = message->msg.gga.h_asl * 1e3;
+			ctx->evtGps.gps.altEllipsoid = message->msg.gga.h_wgs * 1e3;
+			ctx->evtGps.gps.satsNb = message->msg.gga.sats;
+			break;
+
+		case nmea_gsa:
+			ctx->evtGps.gps.hdop = (unsigned int)(message->msg.gsa.hdop * 1e2);
+			ctx->evtGps.gps.vdop = (unsigned int)(message->msg.gsa.vdop * 1e2);
+			break;
+
+		case nmea_rmc:
+			break;
+
+		case nmea_vtg:
+			ctx->evtGps.gps.heading = message->msg.vtg.track * 0.017453 * 1e3;            /* degrees -> milliradians */
+			ctx->evtGps.gps.groundSpeed = message->msg.vtg.speed_kmh * 1e6 * 0.000277778; /* kmh->mm/s */
+			ctx->evtGps.gps.velNorth = cos(message->msg.vtg.track * 0.017453) * ctx->evtGps.gps.groundSpeed;
+			ctx->evtGps.gps.velEast = sin(message->msg.vtg.track * 0.017453) * ctx->evtGps.gps.groundSpeed;
+			break;
+
+		default:
+			break;
+	}
+	gettime(&(ctx->evtGps.timestamp), NULL);
+	mutexUnlock(ctx->lock);
+
+	return 0;
+}
+
+
+static void pa6h_threadMeasure(void *data)
+{
+	sensor_info_t *info = (sensor_info_t *)data;
+	pa6h_ctx_t *ctx = info->ctx;
+	char buf[1024], *start;
+	int n, ret;
+	nmea_t message;
 
 	while (1) {
-		sleep(1);
-		/* TODO: set interval and publish data to sensor manager */
+		memset(buf, 0, sizeof(buf));
+		usleep(500000);
 
-		/* Sample data */
-		ctx->evtGps.gps.lat = 1;
-		ctx->evtGps.gps.lon = 2;
-		ctx->evtGps.gps.hdop = 3;
-		ctx->evtGps.gps.vdop = 4;
-		ctx->evtGps.gps.alt = 5;
-		ctx->evtGps.gps.altEllipsoid = 6;
-		ctx->evtGps.gps.groundSpeed = 7;
-		ctx->evtGps.gps.velNorth = 8;
-		ctx->evtGps.gps.velEast = 9;
-		ctx->evtGps.gps.velDown = 10;
-		ctx->evtGps.gps.eph = 11;
-		ctx->evtGps.gps.epv = 12;
-		ctx->evtGps.gps.heading = 13;
-		ctx->evtGps.gps.headingOffs = 14;
-		ctx->evtGps.gps.headingAccur = 15;
-		ctx->evtGps.gps.satsNb = 16;
-
-		ctx->evtGps.timestamp = pa6h_timeMsGet();
-		sensors_publish(info->id, &ctx->evtGps);
+		fread(buf, 1, sizeof(buf), ctx->srcdevfile);
+		start = buf;
+		n = pa6h_getlines(&start);
+		while (n > 0) {
+			ret = nmea_interpreter(start, &message);
+			if (ret != nmea_broken && ret != nmea_unknown) {
+				pa6h_update(&message, ctx);
+			}
+			n--;
+			start = strchr(start + 1, '$');
+		}
 	}
 }
 
@@ -78,16 +162,30 @@ static int pa6h_start(sensor_info_t *info)
 	}
 
 	ctx->evtGps.type = SENSOR_TYPE_GPS;
-	ctx->evtGps.gps.devId = info->id; //now its random ??
+	ctx->evtGps.gps.devId = info->id;
+	ctx->srcdevfile = fopen(info->srcdev, "r");
 
 	info->ctx = ctx;
 
-	err = beginthread(pa6h_threadPublish, 4, ctx->stack, sizeof(ctx->stack), info);
-	if (err < 0) {
-		free(ctx);
+	if (ctx->srcdevfile != NULL) {
+		mutexCreate(&(ctx->lock));
+		err = beginthread(pa6h_threadMeasure, 4, ctx->measureStack, sizeof(ctx->measureStack), info);
+		if (err < 0) {
+			free(ctx);
+		}
+		else {
+			err = beginthread(pa6h_threadPublish, 4, ctx->publishStack, sizeof(ctx->publishStack), info);
+			if (err < 0) {
+				free(ctx);
+			}
+			else {
+				printf("pa6h: launched sensor\n");
+			}
+		}
 	}
 	else {
-		printf("pa6h: launched sensor\n");
+		fprintf(stderr, "Can't open %s: %s\n", info->srcdev, strerror(errno));
+		err = errno;
 	}
 
 	return err;
@@ -97,8 +195,16 @@ static int pa6h_start(sensor_info_t *info)
 static int pa6h_alloc(sensor_info_t *info, const char *args)
 {
 	info->types = SENSOR_TYPE_GPS;
-
-	/* TODO: parse arguments and initialize device */
+	/* TODO: set proper id */
+	info->id = 1;
+	/* TODO: parse some additional arguments if needed */
+	if (args) {
+		info->srcdev = args;
+	}
+	else {
+		/* default source interface */
+		info->srcdev = "/dev/uart0";
+	}
 
 	return EOK;
 }
