@@ -19,7 +19,6 @@
 #include <sys/rb.h>
 #include <posix/idtree.h>
 
-
 /* Info structure is filled by a sensor driver */
 typedef struct {
 	unsigned int id;     /* device identifier */

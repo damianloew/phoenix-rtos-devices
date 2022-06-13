@@ -46,46 +46,6 @@ static void pa6h_threadPublish(void *data)
 }
 
 
-/* TODO: remove */
-void print_gps_data(gps_data_t *data)
-{
-	printf("lat/lon | hdop:\t%d/%d | %d\n", data->lat, data->lon, data->hdop);
-	printf("asl/wgs | vdop:\t%d/%d | %d\n", data->alt, data->altEllipsoid, data->vdop);
-	printf("kmh/kmhN/kmhE:\t%d/%d/%d\n", data->groundSpeed, data->velNorth, data->velEast);
-	printf("hdop/vdop/sats:\t%d/%d/%d\n", data->hdop, data->vdop, data->satsNb);
-	printf("\n");
-}
-
-
-static int pa6h_getlines(char **buf)
-{
-	int n = 0;
-	char *start, *curr;
-
-	start = strchr(*buf, '$');
-	if (start == NULL) {
-		return 0;
-	}
-
-	curr = start;
-	do {
-		curr = strchr(curr, '$');
-		if (curr != NULL) {
-			curr = strchr(curr, '*');
-		}
-
-		n++;
-	} while (curr != NULL);
-	n--;
-
-	if (n > 0) {
-		*buf = start;
-	}
-
-	return n;
-}
-
-
 int pa6h_update(nmea_t *message, pa6h_ctx_t *ctx)
 {
 	mutexLock(ctx->lock);
@@ -94,7 +54,7 @@ int pa6h_update(nmea_t *message, pa6h_ctx_t *ctx)
 			ctx->evtGps.gps.lat = message->msg.gga.lat * 1e7;
 			ctx->evtGps.gps.lon = message->msg.gga.lon * 1e7;
 			ctx->evtGps.gps.hdop = (unsigned int)(message->msg.gga.hdop * 1e2);
-			//ctx->evtGps.gps.fix = message->msg.gga.fix;
+			// ctx->evtGps.gps.fix = message->msg.gga.fix;
 			ctx->evtGps.gps.alt = message->msg.gga.h_asl * 1e3;
 			ctx->evtGps.gps.altEllipsoid = message->msg.gga.h_wgs * 1e3;
 			ctx->evtGps.gps.satsNb = message->msg.gga.sats;
@@ -129,7 +89,7 @@ static void pa6h_threadMeasure(void *data)
 {
 	sensor_info_t *info = (sensor_info_t *)data;
 	pa6h_ctx_t *ctx = info->ctx;
-	char buf[1024], *start;
+	char buf[1024], *start, **lines;
 	int n, ret;
 	nmea_t message;
 
@@ -137,16 +97,19 @@ static void pa6h_threadMeasure(void *data)
 		memset(buf, 0, sizeof(buf));
 		usleep(500000);
 
-		fread(buf, 1, sizeof(buf), ctx->srcdevfile);
+		fread(buf, 1, sizeof(buf) - 1, ctx->srcdevfile);
 		start = buf;
-		n = pa6h_getlines(&start);
-		while (n > 0) {
-			ret = nmea_interpreter(start, &message);
-			if (ret != nmea_broken && ret != nmea_unknown) {
-				pa6h_update(&message, ctx);
+
+		n = nmea_countlines(&start);
+		lines = nmea_getlines(&start, n);
+
+		for (int i = 0; i < n; i++) {
+			if (nmea_assertChecksum(lines[i]) == EOK) {
+				ret = nmea_interpreter(lines[i], &message);
+				if (ret != nmea_broken && ret != nmea_unknown) {
+					pa6h_update(&message, ctx);
+				}
 			}
-			n--;
-			start = strchr(start + 1, '$');
 		}
 	}
 }

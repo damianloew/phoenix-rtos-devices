@@ -99,7 +99,7 @@ typedef struct {
 /* Event data gets from sensor manager */
 typedef struct {
 	sensor_type_t type;
-	uint64_t timestamp;
+	time_t timestamp;
 
 	union {
 		accel_data_t accels;

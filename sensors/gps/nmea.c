@@ -237,3 +237,68 @@ int nmea_interpreter(char *str, nmea_t *out)
 
 	return ret;
 }
+
+
+int nmea_countlines(char **buf)
+{
+	int n = 0;
+	char *start, *curr;
+
+	start = strchr(*buf, '$');
+	curr = start;
+
+	while (curr != NULL) {
+		curr = strchr(curr, '$');
+		if (curr != NULL) {
+			/* assert that '*' and checksum characters are available */
+			curr = strchr(curr, '*');
+			if ((curr != NULL) && (curr[1] != '\0') && (curr[2] != '\0')) {
+				n++;
+			}
+		}
+	}
+
+	return n;
+}
+
+
+char **nmea_getlines(char **buf, int n)
+{
+	char **lines;
+	char *curr, *start;
+	curr = *buf;
+
+	lines = malloc(sizeof(char *) * n);
+	for (int i = 0; i < n; i++) {
+		start = strchr(curr, '$');
+		if (start != NULL) {
+			curr = strchr(start, '*');
+			if (curr != NULL) {
+				curr[3] = '\0';
+				curr += 4;
+			}
+			lines[i] = start;
+		}
+	}
+
+	return lines;
+}
+
+
+int nmea_assertChecksum(const char *line)
+{
+	char counted;
+	unsigned int read;
+	int i, len;
+	counted = 0;
+	read = 0;
+
+	len = strlen(line) - 3;
+
+	for (i = 1; i < len; i++) {
+		counted ^= line[i];
+	}
+	sscanf(&line[i + 1], "%x", &read);
+
+	return counted == (char)read ? EOK : -1;
+}
