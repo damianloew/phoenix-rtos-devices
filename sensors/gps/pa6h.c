@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <math.h>
 #include <string.h>
 #include <unistd.h>
@@ -24,11 +25,15 @@
 #include "nmea.h"
 
 
+/* Specified by the module's documentation */
+#define UPDATE_RATE_MS 1000
+
+
 typedef struct {
 	sensor_event_t evtGps;
-	FILE *srcdevfile;
-	const char *srcdevpath;
-	char stack[2048] __attribute__((aligned(8)));
+	int filedes;
+	char buff[1024];
+	char stack[512] __attribute__((aligned(8)));
 } pa6h_ctx_t;
 
 
@@ -73,29 +78,32 @@ static void pa6h_threadPublish(void *data)
 {
 	sensor_info_t *info = (sensor_info_t *)data;
 	pa6h_ctx_t *ctx = info->ctx;
-	char buf[1024], *start, **lines;
-	int n, ret;
+	char *start, **lines;
+	int nlines = 0, nbytes = 0, ret = 0;
 	nmea_t message;
 
 	while (1) {
-		memset(buf, 0, sizeof(buf));
-		usleep(500000);
+		memset(ctx->buff, 0, sizeof(ctx->buff));
+		usleep(1000 * UPDATE_RATE_MS);
 
-		fread(buf, 1, sizeof(buf) - 1, ctx->srcdevfile);
-		start = buf;
+		nbytes = read(ctx->filedes, ctx->buff, sizeof(ctx->buff) - 1);
 
-		n = nmea_countlines(&start);
-		lines = nmea_getlines(&start, n);
+		if (nbytes > 0) {
+			start = ctx->buff;
 
-		for (int i = 0; i < n; i++) {
-			if (nmea_assertChecksum(lines[i]) == EOK) {
-				ret = nmea_interpreter(lines[i], &message);
-				if (ret != nmea_broken && ret != nmea_unknown) {
-					pa6h_update(&message, ctx);
+			nlines = nmea_countlines(&start);
+			lines = nmea_getlines(&start, nlines);
+
+			for (int i = 0; i < nlines; i++) {
+				if (nmea_assertChecksum(lines[i]) == EOK) {
+					ret = nmea_interpreter(lines[i], &message);
+					if (ret != nmea_broken && ret != nmea_unknown) {
+						pa6h_update(&message, ctx);
+					}
 				}
 			}
+			sensors_publish(info->id, &ctx->evtGps);
 		}
-		sensors_publish(info->id, &ctx->evtGps);
 	}
 }
 
@@ -107,20 +115,30 @@ static int pa6h_start(sensor_info_t *info)
 
 	ctx->evtGps.type = SENSOR_TYPE_GPS;
 	ctx->evtGps.gps.devId = info->id;
-	ctx->srcdevfile = fopen(ctx->srcdevpath, "r");
 
-	if (ctx->srcdevfile != NULL) {
-		err = beginthread(pa6h_threadPublish, 4, ctx->stack, sizeof(ctx->stack), info);
-		if (err < 0) {
-			free(ctx);
-		}
-		else {
-			printf("pa6h: launched sensor\n");
-		}
+	err = beginthread(pa6h_threadPublish, 4, ctx->stack, sizeof(ctx->stack), info);
+	if (err < 0) {
+		free(ctx);
 	}
 	else {
-		fprintf(stderr, "Can't open %s: %s\n", ctx->srcdevpath, strerror(errno));
-		err = errno;
+		printf("pa6h: launched sensor\n");
+	}
+
+	return err;
+}
+
+
+static int pa6h_parse(const char *args, const char **path)
+{
+	int err = EOK;
+
+	if (!(args == NULL || strchr(args, ':'))) {
+		*path = args;
+	}
+	else {
+		fprintf(stderr, "pa6h: Wrong arguments\n"
+						"Please specify the path to source device instance, for example: /dev/uart0\n");
+		err = -EINVAL;
 	}
 
 	return err;
@@ -129,6 +147,8 @@ static int pa6h_start(sensor_info_t *info)
 
 static int pa6h_alloc(sensor_info_t *info, const char *args)
 {
+	int cnt = 0, err = EOK;
+	const char *path;
 	pa6h_ctx_t *ctx = malloc(sizeof(pa6h_ctx_t));
 
 	if (ctx == NULL) {
@@ -136,18 +156,26 @@ static int pa6h_alloc(sensor_info_t *info, const char *args)
 	}
 
 	info->types = SENSOR_TYPE_GPS;
-	/* TODO: parse some additional arguments if needed */
-	if (args) {
-		ctx->srcdevpath = args;
-	}
-	else {
-		/* default source interface */
-		ctx->srcdevpath = "/dev/uart0";
+
+	err = pa6h_parse(args, &path);
+
+	if (err == EOK) {
+		while ((ctx->filedes = open(path, O_RDONLY | O_NOCTTY | O_NONBLOCK)) < 0) {
+			usleep(10 * 1000);
+			cnt++;
+
+			if (cnt > 10000) {
+				fprintf(stderr, "Can't open %s: %s\n", path, strerror(errno));
+				err = -errno;
+				free(ctx);
+			}
+		}
+		if (ctx->filedes > 0) {
+			info->ctx = ctx;
+		}
 	}
 
-	info->ctx = ctx;
-
-	return EOK;
+	return err;
 }
 
 
