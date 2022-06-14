@@ -26,29 +26,13 @@
 
 typedef struct {
 	sensor_event_t evtGps;
-	handle_t lock;
 	FILE *srcdevfile;
-	char measureStack[2048] __attribute__((aligned(8)));
-	char publishStack[512] __attribute__((aligned(8)));
+	char stack[2048] __attribute__((aligned(8)));
 } pa6h_ctx_t;
-
-
-static void pa6h_threadPublish(void *data)
-{
-	sensor_info_t *info = (sensor_info_t *)data;
-	pa6h_ctx_t *ctx = info->ctx;
-	while (1) {
-		usleep(500000);
-		mutexLock(ctx->lock);
-		sensors_publish(info->id, &ctx->evtGps);
-		mutexUnlock(ctx->lock);
-	}
-}
 
 
 int pa6h_update(nmea_t *message, pa6h_ctx_t *ctx)
 {
-	mutexLock(ctx->lock);
 	switch (message->type) {
 		case nmea_gga:
 			ctx->evtGps.gps.lat = message->msg.gga.lat * 1e7;
@@ -79,13 +63,12 @@ int pa6h_update(nmea_t *message, pa6h_ctx_t *ctx)
 			break;
 	}
 	gettime(&(ctx->evtGps.timestamp), NULL);
-	mutexUnlock(ctx->lock);
 
 	return 0;
 }
 
 
-static void pa6h_threadMeasure(void *data)
+static void pa6h_threadPublish(void *data)
 {
 	sensor_info_t *info = (sensor_info_t *)data;
 	pa6h_ctx_t *ctx = info->ctx;
@@ -111,6 +94,7 @@ static void pa6h_threadMeasure(void *data)
 				}
 			}
 		}
+		sensors_publish(info->id, &ctx->evtGps);
 	}
 }
 
@@ -131,19 +115,12 @@ static int pa6h_start(sensor_info_t *info)
 	info->ctx = ctx;
 
 	if (ctx->srcdevfile != NULL) {
-		mutexCreate(&(ctx->lock));
-		err = beginthread(pa6h_threadMeasure, 4, ctx->measureStack, sizeof(ctx->measureStack), info);
+		err = beginthread(pa6h_threadPublish, 4, ctx->stack, sizeof(ctx->stack), info);
 		if (err < 0) {
 			free(ctx);
 		}
 		else {
-			err = beginthread(pa6h_threadPublish, 4, ctx->publishStack, sizeof(ctx->publishStack), info);
-			if (err < 0) {
-				free(ctx);
-			}
-			else {
-				printf("pa6h: launched sensor\n");
-			}
+			printf("pa6h: launched sensor\n");
 		}
 	}
 	else {
