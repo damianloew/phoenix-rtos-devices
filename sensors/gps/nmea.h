@@ -33,6 +33,11 @@ typedef struct {
 } nmea_gsa_t;
 
 
+enum nmea_gsa_fix { gsa_fix_notavailable = 1,
+	gsa_fix_2d,
+	gsa_fix_3d };
+
+
 enum nmea_fields_gsa { field_gsa_fix = 2,
 	field_gsa_pdop = 15,
 	field_gsa_hdop = 16,
@@ -81,6 +86,16 @@ typedef struct {
 	float h_asl;
 	float h_wgs;
 } nmea_gga_t;
+
+
+enum nmea_gga_fix { gga_fix_invalid,
+	gga_fix_gnss,
+	gga_fix_dpgs,
+	gga_fix_pps,
+	gga_fix_rtkinematic,
+	gga_fix_estimated = 6,
+	gga_fix_maninput,
+	gga_fix_simulation };
 
 
 enum nmea_fields_gga { field_gga_lat = 2,

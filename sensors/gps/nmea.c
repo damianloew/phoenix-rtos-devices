@@ -40,7 +40,7 @@ static int nmea_parsegsa(char *str, nmea_t *out)
 			break;
 		}
 		in.fix = strtoul(p + 1, NULL, 10);
-		if (in.fix == 0 || in.fix > 3) {
+		if (in.fix < gsa_fix_notavailable || in.fix > gsa_fix_3d) {
 			break;
 		}
 
@@ -78,7 +78,7 @@ static int nmea_parsevtg(char *str, nmea_t *out)
 		if (nmea_nField(&p, str, field_vtg_track) == NULL) {
 			break;
 		}
-		in.track = strtoul(p + 1, NULL, 10);
+		in.track = strtod(p + 1, NULL);
 
 		if (nmea_nField(&p, str, field_vtg_speedknots) == NULL) {
 			break;
@@ -111,7 +111,8 @@ static int nmea_parsegga(char *str, nmea_t *out)
 			break;
 		}
 		in.lat = strtod(p + 1, NULL);
-		in.lat = ((int)in.lat / 100) + (in.lat - ((int)in.lat / 100) * 100) / 60; /* conversion from ddmm.mmmm to dd.dddd */
+		/* conversion from ddmm.mmmm to dd.dddd */
+		in.lat = ((int)in.lat / 100) + (in.lat - ((int)in.lat / 100) * 100) / 60;
 		in.lat = (*(sign + 1) == 'S') ? -in.lat : in.lat;
 
 		/* longitude read */
@@ -119,15 +120,16 @@ static int nmea_parsegga(char *str, nmea_t *out)
 			break;
 		}
 		in.lon = strtod(p + 1, NULL);
-		in.lon = ((int)in.lon / 100) + (in.lon - ((int)in.lon / 100) * 100) / 60; /* conversion from ddmm.mmmm to dd.dddd */
-		in.lon = (*(sign + 1) == 'S') ? -in.lon : in.lon;
+		/* conversion from ddmm.mmmm to dd.dddd */
+		in.lon = ((int)in.lon / 100) + (in.lon - ((int)in.lon / 100) * 100) / 60;
+		in.lon = (*(sign + 1) == 'W') ? -in.lon : in.lon;
 
 		/* GPS Quality indicator read */
 		if (nmea_nField(&p, str, field_gga_fix) == NULL) {
 			break;
 		}
 		in.fix = strtoul(p + 1, NULL, 10);
-		if (in.fix == 0 || in.fix > 3) {
+		if (in.fix > gga_fix_simulation) {
 			break;
 		}
 
@@ -185,7 +187,7 @@ static int nmea_parsermc(char *str, nmea_t *out)
 		}
 		in.lon = strtod(p + 1, NULL);
 		in.lon = ((int)in.lon / 100) + (in.lon - ((int)in.lon / 100) * 100) / 60; /* conversion from ddmm.mmmm to dd.dddd */
-		in.lon = (*(sign + 1) == 'S') ? -in.lon : in.lon;
+		in.lon = (*(sign + 1) == 'W') ? -in.lon : in.lon;
 
 		/* speed in knots read */
 		if (nmea_nField(&p, str, field_rmc_speedknots) == NULL) {

@@ -54,7 +54,7 @@ int pa6h_update(nmea_t *message, pa6h_ctx_t *ctx)
 			ctx->evtGps.gps.lat = message->msg.gga.lat * 1e7;
 			ctx->evtGps.gps.lon = message->msg.gga.lon * 1e7;
 			ctx->evtGps.gps.hdop = (unsigned int)(message->msg.gga.hdop * 1e2);
-			// ctx->evtGps.gps.fix = message->msg.gga.fix;
+			ctx->evtGps.gps.fix = message->msg.gga.fix;
 			ctx->evtGps.gps.alt = message->msg.gga.h_asl * 1e3;
 			ctx->evtGps.gps.altEllipsoid = message->msg.gga.h_wgs * 1e3;
 			ctx->evtGps.gps.satsNb = message->msg.gga.sats;
