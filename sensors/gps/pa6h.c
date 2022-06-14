@@ -27,6 +27,7 @@
 typedef struct {
 	sensor_event_t evtGps;
 	FILE *srcdevfile;
+	const char *srcdevpath;
 	char stack[2048] __attribute__((aligned(8)));
 } pa6h_ctx_t;
 
@@ -102,17 +103,11 @@ static void pa6h_threadPublish(void *data)
 static int pa6h_start(sensor_info_t *info)
 {
 	int err;
-	pa6h_ctx_t *ctx = malloc(sizeof(pa6h_ctx_t));
-
-	if (ctx == NULL) {
-		return -ENOMEM;
-	}
+	pa6h_ctx_t *ctx = info->ctx;
 
 	ctx->evtGps.type = SENSOR_TYPE_GPS;
 	ctx->evtGps.gps.devId = info->id;
-	ctx->srcdevfile = fopen(info->srcdev, "r");
-
-	info->ctx = ctx;
+	ctx->srcdevfile = fopen(ctx->srcdevpath, "r");
 
 	if (ctx->srcdevfile != NULL) {
 		err = beginthread(pa6h_threadPublish, 4, ctx->stack, sizeof(ctx->stack), info);
@@ -124,7 +119,7 @@ static int pa6h_start(sensor_info_t *info)
 		}
 	}
 	else {
-		fprintf(stderr, "Can't open %s: %s\n", info->srcdev, strerror(errno));
+		fprintf(stderr, "Can't open %s: %s\n", ctx->srcdevpath, strerror(errno));
 		err = errno;
 	}
 
@@ -134,17 +129,23 @@ static int pa6h_start(sensor_info_t *info)
 
 static int pa6h_alloc(sensor_info_t *info, const char *args)
 {
+	pa6h_ctx_t *ctx = malloc(sizeof(pa6h_ctx_t));
+
+	if (ctx == NULL) {
+		return -ENOMEM;
+	}
+
 	info->types = SENSOR_TYPE_GPS;
-	/* TODO: set proper id */
-	info->id = 1;
 	/* TODO: parse some additional arguments if needed */
 	if (args) {
-		info->srcdev = args;
+		ctx->srcdevpath = args;
 	}
 	else {
 		/* default source interface */
-		info->srcdev = "/dev/uart0";
+		ctx->srcdevpath = "/dev/uart0";
 	}
+
+	info->ctx = ctx;
 
 	return EOK;
 }
