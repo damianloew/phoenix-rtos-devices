@@ -28,6 +28,10 @@
 /* Specified by the module's documentation */
 #define UPDATE_RATE_MS 1000
 
+#define DEG2RAD     0.0174532925
+#define DEG2MILIRAD 17.4532925 /* 1 degree -> 1 milliradian conversion parameter */
+#define KMH2MMS     277.7778   /* 1 km/h -> mm/s convertion parameter */
+
 
 typedef struct {
 	sensor_event_t evtGps;
@@ -59,10 +63,10 @@ int pa6h_update(nmea_t *message, pa6h_ctx_t *ctx)
 			break;
 
 		case nmea_vtg:
-			ctx->evtGps.gps.heading = message->msg.vtg.track * 0.017453 * 1e3;            /* degrees -> milliradians */
-			ctx->evtGps.gps.groundSpeed = message->msg.vtg.speed_kmh * 1e6 * 0.000277778; /* kmh->mm/s */
-			ctx->evtGps.gps.velNorth = cos(message->msg.vtg.track * 0.017453) * ctx->evtGps.gps.groundSpeed;
-			ctx->evtGps.gps.velEast = sin(message->msg.vtg.track * 0.017453) * ctx->evtGps.gps.groundSpeed;
+			ctx->evtGps.gps.heading = message->msg.vtg.track * DEG2MILIRAD;     /* degrees -> milliradians */
+			ctx->evtGps.gps.groundSpeed = message->msg.vtg.speed_kmh * KMH2MMS; /* kmh->mm/s */
+			ctx->evtGps.gps.velNorth = cos(message->msg.vtg.track * DEG2RAD) * ctx->evtGps.gps.groundSpeed;
+			ctx->evtGps.gps.velEast = sin(message->msg.vtg.track * DEG2RAD) * ctx->evtGps.gps.groundSpeed;
 			break;
 
 		default:
