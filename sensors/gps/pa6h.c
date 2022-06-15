@@ -82,38 +82,43 @@ static void pa6h_threadPublish(void *data)
 {
 	sensor_info_t *info = (sensor_info_t *)data;
 	pa6h_ctx_t *ctx = info->ctx;
+	nmea_t message;
 	char *start, **lines;
 	int nlines = 0, nbytes = 0, ret = 0;
-	nmea_t message;
+	unsigned char flag = 0;
+
 
 	while (1) {
 		memset(ctx->buff, 0, sizeof(ctx->buff));
 		usleep(1000 * UPDATE_RATE_MS);
 
 		nbytes = read(ctx->filedes, ctx->buff, sizeof(ctx->buff) - 1);
-
 		if (nbytes > 0) {
 			start = ctx->buff;
-
-			nlines = nmea_countlines(&start);
-			lines = nmea_getlines(&start, nlines);
+			nlines = nmea_countlines(start);
+			lines = nmea_getlines(start, nlines);
 
 			for (int i = 0; i < nlines; i++) {
 				if (nmea_assertChecksum(lines[i]) == EOK) {
 					ret = nmea_interpreter(lines[i], &message);
 					if (ret != nmea_broken && ret != nmea_unknown) {
 						pa6h_update(&message, ctx);
+						flag = 1;
 					}
 				}
 			}
-			sensors_publish(info->id, &ctx->evtGps);
+			if (flag == 1) {
+				sensors_publish(info->id, &ctx->evtGps);
+				flag = 0;
+			}
 		}
 	}
+	free(lines);
 }
 
 
 static int pa6h_start(sensor_info_t *info)
-{
+{	
 	int err;
 	pa6h_ctx_t *ctx = info->ctx;
 
@@ -169,12 +174,12 @@ static int pa6h_alloc(sensor_info_t *info, const char *args)
 			cnt++;
 
 			if (cnt > 10000) {
-				fprintf(stderr, "Can't open %s: %s\n", path, strerror(errno));
+				fprintf(stderr, "pa6h: Can't open %s: %s\n", path, strerror(errno));
 				err = -errno;
-				free(ctx);
+				break;
 			}
 		}
-		if (ctx->filedes > 0) {
+		if (ctx->filedes >= 0) {
 			info->ctx = ctx;
 		}
 	}
