@@ -41,7 +41,18 @@ typedef struct {
 } libuart_ctx;
 
 
-enum { usart1 = 0, usart2, usart3, uart4, uart5 };
+enum { uarte_startrx = 0, uarte_stoprx, uarte_starttx, uarte_stoptx, uarte_flushrx = 11,
+uarte_events_cts = 64, uarte_events_rxdrdy = 66, uarte_events_endrx = 68, uarte_events_txdrdy = 71, uarte_events_endtx, uarte_events_error, uarte_events_rxto = 81, uarte_events_txstarted = 84, 
+uarte_inten = 192, uarte_intenset, uarte_intenclr, uarte_errorsrc = 288, uarte_enable = 320, 
+uarte_psel_rts = 322, uarte_psel_txd, uarte_psel_cts, uarte_psel_rxd, uarte_baudrate = 329, 
+uarte_rxd_ptr = 333, uarte_rxd_maxcnt, uarte_rxd_amount, uarte_txd_ptr = 337, uarte_txd_maxcnt, uarte_txd_amount, 
+uarte_config = 347 };
+
+
+enum { baud_9600 = 0x00275000, baud_115200 = 0x01D60000 };
+
+
+enum { uart0 = 0, uart1, uart2, uart3 };
 
 
 enum { uart_mnormal = 0, uart_mnblock };
