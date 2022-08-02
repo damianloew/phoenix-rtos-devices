@@ -99,15 +99,15 @@ static inline int tty_txready(tty_ctx_t *ctx)
 {
 	//not working
 	/* clear txdrdy flag if there endtx event has been occurred */
-	if (*(ctx->base + uarte_events_endtx)) {
-		*(ctx->base + uarte_events_txdrdy) = 0u;
-	}
-	// int ret = *(ctx->base + uarte_events_txdrdy);
-	// *(ctx->base + uarte_events_txdrdy) = 0u;
+	// if (*(ctx->base + uarte_events_endtx)) {
+	// 	*(ctx->base + uarte_events_txdrdy) = 0u;
+	// }
+	int ret = *(ctx->base + uarte_events_txdrdy);
+	*(ctx->base + uarte_events_txdrdy) = 0u;
 	
 	/* if endtx event */
 //its 0 checktxdrdy reg!!
-	return *(ctx->base + uarte_events_txdrdy); //there was endtx before 
+	return ret; //*(ctx->base + uarte_events_txdrdy); //there was endtx before 
 }
 
 
@@ -168,7 +168,7 @@ static void tty_irqthread(void *arg)
 	while (1) {
 		mutexLock(ctx->irqlock);
 		// it does not go furtherit waits for condBroadcast?
-		while ((!ctx->rxready && !(tty_txready(ctx) && (libtty_txready(&ctx->tty_common) || keptidle))) || !(*(ctx->base + uarte_enable) & 0x08))
+		while ((!ctx->rxready && !((libtty_txready(&ctx->tty_common) || keptidle))) || !(*(ctx->base + uarte_enable) & 0x08))
 			condWait(ctx->cond, ctx->irqlock, 0);
 		mutexUnlock(ctx->irqlock);
 

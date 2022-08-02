@@ -11,6 +11,6 @@ SRCS := $(wildcard $(LOCAL_PATH)*.c)
 LOCAL_HEADERS := nrf91-multi.h
 DEP_LIBS := libnrf91-multi libtty
 LIBS := libdummyfs
-CFLAGS += -O0 -g3 -ggdb #DEBUG CFLAGS
+CFLAGS += -O0 -ggdb3 #DEBUG CFLAGS
 
 include $(binary.mk)
