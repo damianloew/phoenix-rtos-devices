@@ -98,12 +98,16 @@ enum { tty_parnone = 0, tty_pareven, tty_parodd };
 static inline int tty_txready(tty_ctx_t *ctx)
 {
 	//not working
-	int ret = *(ctx->base + uarte_events_txdrdy);
-	*(ctx->base + uarte_events_txdrdy) = 0u;
+	/* clear txdrdy flag if there endtx event has been occurred */
+	if (*(ctx->base + uarte_events_endtx)) {
+		*(ctx->base + uarte_events_txdrdy) = 0u;
+	}
+	// int ret = *(ctx->base + uarte_events_txdrdy);
+	// *(ctx->base + uarte_events_txdrdy) = 0u;
 	
 	/* if endtx event */
 //its 0 checktxdrdy reg!!
-	return ret; //*(ctx->base + uarte_events_txdrdy); //there was endtx before 
+	return *(ctx->base + uarte_events_txdrdy); //there was endtx before 
 }
 
 
@@ -112,7 +116,7 @@ static int tty_irqHandler(unsigned int n, void *arg)
 
 	tty_ctx_t *ctx = (tty_ctx_t *)arg;
 
-	if (ctx->base + uarte_events_rxdrdy) {
+	if (*(ctx->base + uarte_events_rxdrdy)) {
 		/* clear rxdrdy event flag */
 		*(ctx->base + uarte_events_rxdrdy) = 0u;
 
@@ -121,15 +125,18 @@ static int tty_irqHandler(unsigned int n, void *arg)
 		ctx->rxready = 1;
 	}
 
-	if (tty_txready(ctx)) {
-		/* clear endtx event flag */
-		*(ctx->base + uarte_events_endtx) = 0u;
+	// if (tty_txready(ctx)) {
+	// 	/* clear endtx event flag */
+	// 	// *(ctx->base + uarte_events_endtx) = 0u;
+	// 	/* disable endtx interrupt but don't clear flag */
+	// 	*(ctx->base + uarte_intenclr) = 0x100;
+	// }
+
+	if (*(ctx->base + uarte_events_endtx) == 1u) {
 		/* disable endtx interrupt but don't clear flag */
 		*(ctx->base + uarte_intenclr) = 0x100;
+		// *(ctx->base + uarte_events_endtx) = 0u;
 	}
-	// if (*(ctx->base + uarte_events_endtx) == 1u) {
-	// 	*(ctx->base + uarte_events_endtx) = 0u;
-	// }
 				// while ( *(uart->base + uarte_events_endtx) != 1u )
 				// 	;
 				// *(uart->base + uarte_events_endtx) = 0u;
@@ -242,6 +249,9 @@ static int _tty_configure(tty_ctx_t *ctx, char bits, char parity, char enable)
 	/* Set default memory regions for uart dma */
 	*(ctx->base + uarte_txd_ptr) = (unsigned int)ctx->tx_dma;
 	*(ctx->base + uarte_rxd_ptr) = (unsigned int)ctx->rx_dma;
+
+	/* clear rxdrdy flag */
+	*(ctx->base + uarte_events_rxdrdy) = 0u;
 
 	/* Disable all uart interrupts */
 	*(ctx->base + uarte_intenclr) = 0xFFFFFFFF;
