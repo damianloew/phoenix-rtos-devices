@@ -30,7 +30,7 @@
 #include "common.h"
 #include "gpio.h"
 #include "tty.h"
-#include "uart.h"
+// #include "uart.h"
 // #include "rcc.h"
 
 #define TTY0_POS 0
@@ -117,14 +117,13 @@ static int tty_irqHandler(unsigned int n, void *arg)
 
 	tty_ctx_t *ctx = (tty_ctx_t *)arg;
 
-	// printf("ttyirq\n");
 	if (*(ctx->base + uarte_events_rxdrdy)) {
-		// printf("ttyirq - rxdrdy\n");
 		/* clear rxdrdy event flag */
 		*(ctx->base + uarte_events_rxdrdy) = 0u;
 
 		/* I think that because of rxready there cnt isn't necessary */
-		ctx->rxbuff = ctx->rx_dma[0];
+		ctx->rxbuff = ctx->rx_dma[ctx->cnt];
+		ctx->cnt++;
 		ctx->rxready = 1;
 	}
 
@@ -138,6 +137,7 @@ static int tty_irqHandler(unsigned int n, void *arg)
 	if (*(ctx->base + uarte_events_endtx) == 1u) {
 		/* disable endtx interrupt but don't clear flag */
 		*(ctx->base + uarte_intenclr) = 0x100;
+		// ctx->cnt = 0;
 		// *(ctx->base + uarte_events_endtx) = 0u;
 	}
 				// while ( *(uart->base + uarte_events_endtx) != 1u )
@@ -155,6 +155,14 @@ static int tty_irqHandler(unsigned int n, void *arg)
 
 	// if (tty_txready(ctx))
 	// 	*(ctx->base + cr1) &= ~(1 << 7);
+
+	// if (uart->base + uarte_events_endrx) {
+	// 	/* clear endrx event flag */
+	// 	*(uart->base + uarte_events_endrx) = 0u;
+	// 	uart->cnt = 0;
+	// 	*(uart->base + uarte_startrx) = 1u;
+	// 	hal_cpuDataMemoryBarrier();
+	// }
 
 	return 1;
 }
@@ -209,6 +217,8 @@ static void tty_irqthread(void *arg)
 				ctx->tx_dma[0] = libtty_getchar(&ctx->tty_common, NULL);
 				/* clear flag */
 				*(ctx->base + uarte_events_endtx) = 0u;
+				ctx->cnt = 0;
+				*(ctx->base + uarte_startrx) = 1u;
 				/* enable endtx interrupt */
 				*(ctx->base + uarte_intenset) = 0x100;
 				*(ctx->base + uarte_starttx) = 1u;
@@ -453,7 +463,7 @@ int tty_init(unsigned int *port)
 #if TTY_CNT != 0
 	unsigned int uart, i;
 	char fname[] = "uartx";
-	char str[180];
+	// char str[180];
 	int test = 2;
 	oid_t oid;
 	libtty_callbacks_t callbacks;
@@ -482,12 +492,12 @@ static const struct {
 	{ (void *)UART3_BASE, UART3_IRQ, (volatile char *)UART3_TX_DMA, (volatile char *)UART3_RX_DMA }
 };
 
-	sprintf(str, "&uart_common.port = %p\n", &uart_common.port);
-	debug(str);
+	// sprintf(str, "&uart_common.port = %p\n", &uart_common.port);
+	// debug(str);
 
-	sprintf(str, "TTY0 = %d, TTY1 = %d, TTY2 = %d, TTY3 = %d, &uartConfig= %p, uartConfig[0] = %d, uartConfig[1] = %d, uartConfig[2] = %d, uartConfig[3] = %d\n", TTY0, TTY1, TTY2, TTY3, uartConfig, uartConfig[0], uartConfig[1], uartConfig[2], uartConfig[3]);
-	// sprintf(str, "&uartConfig= %p, uartConfig[0] = %d\n", uartConfig, uartConfig[0]);
-	debug(str);
+	// sprintf(str, "TTY0 = %d, TTY1 = %d, TTY2 = %d, TTY3 = %d, &uartConfig= %p, uartConfig[0] = %d, uartConfig[1] = %d, uartConfig[2] = %d, uartConfig[3] = %d\n", TTY0, TTY1, TTY2, TTY3, uartConfig, uartConfig[0], uartConfig[1], uartConfig[2], uartConfig[3]);
+	// // sprintf(str, "&uartConfig= %p, uartConfig[0] = %d\n", uartConfig, uartConfig[0]);
+	// debug(str);
 
 	test=4;
 	if (port == NULL)

@@ -1,9 +1,9 @@
 #
 # Makefile for Phoenix-RTOS 3 device drivers
 #
-# STM32 drivers
+# NRF9160 drivers
 #
-# Copyright 2019, 2020 Phoenix Systems
+# Copyright 2022 Phoenix Systems
 #
 
 CFLAGS += -DTARGET_NRF91 -DTARGET_NRF91

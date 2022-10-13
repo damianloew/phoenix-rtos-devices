@@ -24,17 +24,8 @@
 #include "common.h"
 
 #include "nrf91-multi.h"
-// #include "adc.h"
-// #include "exti.h"
-// #include "flash.h"
-// #include "fs.h"
 #include "gpio.h"
-// #include "i2c.h"
-// #include "rcc.h"
-// #include "rtc.h"
-// #include "spi.h"
 #include "tty.h"
-#include "uart.h"
 
 #define THREADS_NO 3
 #define THREADS_PRIORITY 1
@@ -46,50 +37,6 @@ struct {
 
 	unsigned int port;
 } common;
-
-
-static void handleMsg(msg_t *msg)
-{
-	// multi_i_t *imsg = (multi_i_t *)msg->i.raw;
-	// multi_o_t *omsg = (multi_o_t *)msg->o.raw;
-	// int err = EOK;
-	// unsigned int t;
-
-	// switch (imsg->type) {
-	// 	case gpio_def:
-	// 		err = gpio_configPin(imsg->gpio_def.port, imsg->gpio_def.pin, imsg->gpio_def.mode,
-	// 			imsg->gpio_def.af, imsg->gpio_def.otype, imsg->gpio_def.ospeed, imsg->gpio_def.pupd);
-	// 		break;
-
-	// 	case gpio_get:
-	// 		err = gpio_getPort(imsg->gpio_get.port, &t);
-	// 		omsg->gpio_get = t;
-	// 		break;
-
-	// 	case gpio_set:
-	// 		err = gpio_setPort(imsg->gpio_set.port, imsg->gpio_set.mask, imsg->gpio_set.state);
-	// 		break;
-
-	// 	case uart_def:
-	// 		err = uart_configure(imsg->uart_def.uart, imsg->uart_def.bits, imsg->uart_def.parity,
-	// 			imsg->uart_def.baud, imsg->uart_def.enable);
-	// 		break;
-
-	// 	case uart_get:
-	// 		err = uart_read(imsg->uart_get.uart, msg->o.data, msg->o.size,
-	// 			imsg->uart_get.mode, imsg->uart_get.timeout);
-	// 		break;
-
-	// 	case uart_set:
-	// 		err = uart_write(imsg->uart_set.uart, msg->i.data, msg->i.size);
-	// 		break;
-
-	// 	default:
-	// 		err = -EINVAL;
-	// }
-
-	// omsg->err = err;
-}
 
 
 static ssize_t console_write(const char *str, size_t len, int mode)
@@ -108,7 +55,7 @@ static ssize_t console_read(char *str, size_t bufflen, int mode)
 #if CONSOLE_IS_TTY
 	return -ENOSYS;
 #else
-	return uart_read(UART_CONSOLE - 1, str, bufflen, uart_mnormal, 0);
+	//return uart_read(UART_CONSOLE - 1, str, bufflen, uart_mnormal, 0);
 #endif
 }
 
@@ -139,7 +86,8 @@ static void thread(void *arg)
 				break;
 
 			case mtDevCtl:
-				handleMsg(&msg);
+				/* TODO: add implementation */
+				msg.o.create.err = -EINVAL;
 				break;
 
 			case mtCreate:
@@ -164,14 +112,10 @@ static void thread(void *arg)
 
 int main(void)
 {
-	// __asm__ volatile ("1: b 1b");
 	volatile unsigned int *dirset = 0x50842518;
 	volatile unsigned int *outset = 0x50842508;
 	*dirset = 1u << 2;
 	*outset = 1u << 2;
-	// __asm__ volatile ("1: b 1b");
-	// while(1) {;}
-
 
 	int i;
 	oid_t oid;
@@ -197,19 +141,14 @@ int main(void)
 #endif
 
 #if CONSOLE_IS_TTY
-	//it goes here 
 	tty_init(&ttyConsolePort);
 #else
 	tty_init(NULL);
 #endif
 
-	// gpio_init();
-	// uart_init();
-
 	/* it doesn't work! it crashes here, probably because of no dummyfs */
 	portRegister(common.port, "/multi", &oid);
 
-	//here it restarts! latest 
 	console_write(welcome, sizeof(welcome) - 1, 0);
 
 	for (i = 0; i < THREADS_NO - 1; ++i)
