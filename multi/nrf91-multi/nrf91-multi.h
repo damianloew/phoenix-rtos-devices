@@ -16,197 +16,195 @@
 
 #include <sys/interrupt.h>
 #include <libmulti/libuart.h>
-// #include <libmulti/libspi.h>
-// #include <libmulti/libi2c.h>
 
 
 #define FLASH_REBOOT_MAGIC 0x88bb77aaUL
 
 
-enum { adc_get = 0, rtc_setcal, rtc_get, rtc_set, rtc_setalarm, i2c_get, i2c_getwreg,
-	i2c_set, i2c_setwreg, gpio_def, gpio_get, gpio_set, uart_def, uart_get, uart_set,
-	flash_get, flash_set, flash_switch, flash_info, spi_get, spi_set, spi_rw, spi_def,
-	exti_def, exti_map };
+// enum { adc_get = 0, rtc_setcal, rtc_get, rtc_set, rtc_setalarm, i2c_get, i2c_getwreg,
+// 	i2c_set, i2c_setwreg, gpio_def, gpio_get, gpio_set, uart_def, uart_get, uart_set,
+// 	flash_get, flash_set, flash_switch, flash_info, spi_get, spi_set, spi_rw, spi_def,
+// 	exti_def, exti_map };
 
-/* RTC */
-
-
-typedef struct {
-	unsigned int usecs;
-	unsigned int year;
-	unsigned char month;
-	unsigned char day;
-	unsigned char wday;
-
-	unsigned char hours;
-	unsigned char minutes;
-	unsigned char seconds;
-} __attribute__((packed)) rtctimestamp_t;
+// /* RTC */
 
 
-/* I2C */
+// typedef struct {
+// 	unsigned int usecs;
+// 	unsigned int year;
+// 	unsigned char month;
+// 	unsigned char day;
+// 	unsigned char wday;
+
+// 	unsigned char hours;
+// 	unsigned char minutes;
+// 	unsigned char seconds;
+// } __attribute__((packed)) rtctimestamp_t;
 
 
-typedef struct {
-	int i2c;
-	unsigned char addr;
-	unsigned char reg;
-} __attribute__((packed)) i2cmsg_t;
+// /* I2C */
 
 
-/* GPIO */
+// typedef struct {
+// 	int i2c;
+// 	unsigned char addr;
+// 	unsigned char reg;
+// } __attribute__((packed)) i2cmsg_t;
 
 
-enum { gpioa = 0, gpiob, gpioc, gpiod, gpioe, gpiof, gpiog, gpioh, gpioi };
+// /* GPIO */
 
 
-typedef struct {
-	int port;
-} __attribute__((packed)) gpioget_t;
+// enum { gpioa = 0, gpiob, gpioc, gpiod, gpioe, gpiof, gpiog, gpioh, gpioi };
 
 
-typedef struct {
-	int port;
-	unsigned int mask;
-	unsigned int state;
-} __attribute__((packed)) gpioset_t;
+// typedef struct {
+// 	int port;
+// } __attribute__((packed)) gpioget_t;
 
 
-typedef struct {
-	int port;
-	char pin;
-	char mode;
-	char af;
-	char otype;
-	char ospeed;
-	char pupd;
-} __attribute__((packed)) gpiodef_t;
+// typedef struct {
+// 	int port;
+// 	unsigned int mask;
+// 	unsigned int state;
+// } __attribute__((packed)) gpioset_t;
 
 
-/* UART */
+// typedef struct {
+// 	int port;
+// 	char pin;
+// 	char mode;
+// 	char af;
+// 	char otype;
+// 	char ospeed;
+// 	char pupd;
+// } __attribute__((packed)) gpiodef_t;
 
 
-typedef struct {
-	int uart;
-	int mode;
-	unsigned int timeout;
-} __attribute__((packed)) uartget_t;
+// /* UART */
 
 
-typedef struct {
-	int uart;
-} __attribute__((packed)) uartset_t;
+// typedef struct {
+// 	int uart;
+// 	int mode;
+// 	unsigned int timeout;
+// } __attribute__((packed)) uartget_t;
 
 
-typedef struct {
-	int uart;
-	unsigned int baud;
-	char enable;
-	char bits;
-	char parity;
-} __attribute__((packed)) uartdef_t;
+// typedef struct {
+// 	int uart;
+// } __attribute__((packed)) uartset_t;
 
 
-/* SPI */
-
-typedef struct {
-	int spi;
-	unsigned int addr;
-	unsigned int flags;
-	char cmd;
-} __attribute__((packed)) spirw_t;
-
-
-typedef struct {
-	int spi;
-	int enable;
-	char mode;
-	char bdiv;
-} __attribute__((packed)) spidef_t;
+// typedef struct {
+// 	int uart;
+// 	unsigned int baud;
+// 	char enable;
+// 	char bits;
+// 	char parity;
+// } __attribute__((packed)) uartdef_t;
 
 
-/* EXTI */
+// /* SPI */
+
+// typedef struct {
+// 	int spi;
+// 	unsigned int addr;
+// 	unsigned int flags;
+// 	char cmd;
+// } __attribute__((packed)) spirw_t;
 
 
-enum { exti_irq = 0, exti_event, exti_irqevent, exti_disabled };
+// typedef struct {
+// 	int spi;
+// 	int enable;
+// 	char mode;
+// 	char bdiv;
+// } __attribute__((packed)) spidef_t;
 
 
-enum { exti_rising = 0, exti_falling, exti_risingfalling };
+// /* EXTI */
 
 
-typedef struct {
-	unsigned int line;
-	unsigned char mode;
-	unsigned char edge;
-} extidef_t;
+// enum { exti_irq = 0, exti_event, exti_irqevent, exti_disabled };
 
 
-typedef struct {
-	unsigned int line;
-	int port;
-} extimap_t;
+// enum { exti_rising = 0, exti_falling, exti_risingfalling };
 
 
-/* ADC */
+// typedef struct {
+// 	unsigned int line;
+// 	unsigned char mode;
+// 	unsigned char edge;
+// } extidef_t;
 
 
-enum { adc1 = 0, adc2, adc3 };
+// typedef struct {
+// 	unsigned int line;
+// 	int port;
+// } extimap_t;
 
 
-typedef struct {
-	int adcno;
-	int channel;
-} adcget_t;
+// /* ADC */
 
 
-/* FLASH */
+// enum { adc1 = 0, adc2, adc3 };
 
 
-typedef struct {
-	unsigned char dualbank;
-	unsigned char dualboot;
-	unsigned char remap;
-	unsigned char activebank;
-} __attribute__((packed)) flashinfo_t;
+// typedef struct {
+// 	int adcno;
+// 	int channel;
+// } adcget_t;
+
+
+// /* FLASH */
+
+
+// typedef struct {
+// 	unsigned char dualbank;
+// 	unsigned char dualboot;
+// 	unsigned char remap;
+// 	unsigned char activebank;
+// } __attribute__((packed)) flashinfo_t;
 
 
 /* MULTI */
 
 
-typedef struct {
-	int type;
+// typedef struct {
+// 	int type;
 
-	union {
-		adcget_t adc_get;
-		int rtc_calib;
-		rtctimestamp_t rtc_timestamp;
-		i2cmsg_t i2c_msg;
-		uartget_t uart_get;
-		uartset_t uart_set;
-		uartdef_t uart_def;
-		gpiodef_t gpio_def;
-		gpioget_t gpio_get;
-		gpioset_t gpio_set;
-		spirw_t spi_rw;
-		spidef_t spi_def;
-		extidef_t exti_def;
-		extimap_t exti_map;
-		unsigned int flash_addr;
-		unsigned int flash_magic;
-	};
-} __attribute__((packed)) multi_i_t;
+// 	union {
+// 		adcget_t adc_get;
+// 		int rtc_calib;
+// 		rtctimestamp_t rtc_timestamp;
+// 		i2cmsg_t i2c_msg;
+// 		uartget_t uart_get;
+// 		uartset_t uart_set;
+// 		uartdef_t uart_def;
+// 		gpiodef_t gpio_def;
+// 		gpioget_t gpio_get;
+// 		gpioset_t gpio_set;
+// 		spirw_t spi_rw;
+// 		spidef_t spi_def;
+// 		extidef_t exti_def;
+// 		extimap_t exti_map;
+// 		unsigned int flash_addr;
+// 		unsigned int flash_magic;
+// 	};
+// } __attribute__((packed)) multi_i_t;
 
 
-typedef struct {
-	int err;
+// typedef struct {
+// 	int err;
 
-	union {
-		unsigned short adc_valmv;
-		rtctimestamp_t rtc_timestamp;
-		unsigned int gpio_get;
-		flashinfo_t flash_info;
-	};
-} __attribute__((packed)) multi_o_t;
+// 	union {
+// 		unsigned short adc_valmv;
+// 		rtctimestamp_t rtc_timestamp;
+// 		unsigned int gpio_get;
+// 		flashinfo_t flash_info;
+// 	};
+// } __attribute__((packed)) multi_o_t;
 
 
 #endif

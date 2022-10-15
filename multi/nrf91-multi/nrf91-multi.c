@@ -3,8 +3,8 @@
  *
  * NRF91 multi driver main
  *
- * Copyright 2018, 2020 Phoenix Systems
- * Author: Aleksander Kaminski
+ * Copyright 2018, 2020, 2022 Phoenix Systems
+ * Author: Aleksander Kaminski, Damian Loewnau
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -25,7 +25,6 @@
 
 #include "nrf91-multi.h"
 #include "fs.h"
-#include "gpio.h"
 #include "tty.h"
 
 #define THREADS_NO 3
