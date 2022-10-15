@@ -1,10 +1,10 @@
 /*
  * Phoenix-RTOS
  *
- * STM32L4 TTY driver
+ * nRF91 TTY driver
  *
- * Copyright 2017, 2018 Phoenix Systems
- * Author: Aleksander Kaminski
+ * Copyright 2017, 2018, 2022 Phoenix Systems
+ * Author: Aleksander Kaminski, Damian Loewnau
  *
  * This file is part of Phoenix-RTOS.
  *

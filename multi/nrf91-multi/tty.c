@@ -1,10 +1,10 @@
 /*
  * Phoenix-RTOS
  *
- * nrf91 TTY driver
+ * nRF91 TTY driver
  *
- * Copyright 2017, 2018, 2020 Phoenix Systems
- * Author: Jan Sikorski, Aleksander Kaminski, Andrzej Glowinski
+ * Copyright 2017, 2018, 2020, 2022 Phoenix Systems
+ * Author: Jan Sikorski, Aleksander Kaminski, Andrzej Glowinski, Damian Loewnau
  *
  * This file is part of Phoenix-RTOS.
  *
@@ -23,15 +23,11 @@
 #include <sys/file.h>
 #include <sys/threads.h>
 #include <libtty.h>
-// #include <libuart.h>
 
 #include "nrf91-multi.h"
 #include "config.h"
 #include "common.h"
-#include "gpio.h"
 #include "tty.h"
-// #include "uart.h"
-// #include "rcc.h"
 
 #define TTY0_POS 0
 #define TTY1_POS (TTY0_POS + TTY0)
@@ -80,127 +76,59 @@ static struct {
 
 static unsigned int common_port;
 
+
 static const int uartConfig[] = { TTY0, TTY1, TTY2, TTY3 };
 
 
 static const int uartPos[] = { TTY0_POS, TTY1_POS, TTY2_POS, TTY3_POS };
 
-/* IT'S VISIBLE FROM KERNEL ???*/
-// enum { uarte_startrx = 0, uarte_stoprx, uarte_starttx, uarte_stoptx, uarte_flushrx = 11,
-// uarte_events_cts = 64, uarte_events_rxdrdy = 66, uarte_events_endrx = 68, uarte_events_txdrdy = 71, uarte_events_endtx, uarte_events_error, uarte_events_rxto = 81, uarte_events_txstarted = 84, 
-// uarte_inten = 192, uarte_intenset, uarte_intenclr, uarte_errorsrc = 288, uarte_enable = 320, 
-// uarte_psel_rts = 322, uarte_psel_txd, uarte_psel_cts, uarte_psel_rxd, uarte_baudrate = 329, 
-// uarte_rxd_ptr = 333, uarte_rxd_maxcnt, uarte_rxd_amount, uarte_txd_ptr = 337, uarte_txd_maxcnt, uarte_txd_amount, 
-// uarte_config = 347 };
 
-
-enum { tty_parnone = 0, tty_pareven, tty_parodd };
-
-
-static inline int tty_txready(tty_ctx_t *ctx)
+static int tty_txready(tty_ctx_t *ctx)
 {
 	int ret;
-
 	ret = ctx->init;
-	/* clear flag if it's first check */
-	// if (ret) {
-	// 	ctx->init = 0;
-	// }
+
 	if (!ret) {
 		ret = *(ctx->base + uarte_events_txdrdy);
 		*(ctx->base + uarte_events_txdrdy) = 0u;
 		ctx->init = 0;
 	}
-	//not working
-	/* clear txdrdy flag if there endtx event has been occurred */
-	// if (*(ctx->base + uarte_events_endtx)) {
-	// 	*(ctx->base + uarte_events_txdrdy) = 0u;
-	// }
-	// int ret = *(ctx->base + uarte_events_txdrdy);
-	// *(ctx->base + uarte_events_txdrdy) = 0u;
-	
-	/* if endtx event */
-//its 0 checktxdrdy reg!!
-	return ret; //ctx->init ? 1 : ret; //*(ctx->base + uarte_events_txdrdy); //there was endtx before 
+
+	return ret;
 }
 
 
 static int tty_irqHandler(unsigned int n, void *arg)
 {
-
 	tty_ctx_t *ctx = (tty_ctx_t *)arg;
 
 	if (*(ctx->base + uarte_events_rxdrdy)) {
 		/* clear rxdrdy event flag */
 		*(ctx->base + uarte_events_rxdrdy) = 0u;
 
-		/* I think that because of rxready there cnt isn't necessary */
 		ctx->rxbuff = ctx->rx_dma[ctx->cnt];
 		ctx->cnt++;
 		ctx->rxready = 1;
 	}
 
-	// if (tty_txready(ctx)) {
-	// 	/* clear endtx event flag */
-	// 	// *(ctx->base + uarte_events_endtx) = 0u;
-	// 	/* disable endtx interrupt but don't clear flag */
-	// 	*(ctx->base + uarte_intenclr) = 0x100;
-	// }
-
-	if (*(ctx->base + uarte_events_endtx) == 1u) {
-		/* disable endtx interrupt but don't clear flag */
+	if (*(ctx->base + uarte_events_endtx)) {
+		/* disable endtx interrupt and clear flag */
+		*(ctx->base + uarte_events_endtx) = 0u;
 		*(ctx->base + uarte_intenclr) = 0x100;
-		// ctx->cnt = 0;
-		// *(ctx->base + uarte_events_endtx) = 0u;
+		*(ctx->base + uarte_startrx) = 1u;
 	}
-				// while ( *(uart->base + uarte_events_endtx) != 1u )
-				// 	;
-				// *(uart->base + uarte_events_endtx) = 0u;
 
-	/* previous implementation*/
-	// if (*(ctx->base + isr) & ((1 << 5) | (1 << 3))) {
-	// 	/* Clear overrun error bit */
-	// 	*(ctx->base + icr) |= (1 << 3);
-
-	// 	ctx->rxbuff = *(ctx->base + rdr);
-	// 	ctx->rxready = 1;
-	// }
-
-	// if (tty_txready(ctx))
-	// 	*(ctx->base + cr1) &= ~(1 << 7);
-
-	// if (uart->base + uarte_events_endrx) {
-	// 	/* clear endrx event flag */
-	// 	*(uart->base + uarte_events_endrx) = 0u;
-	// 	uart->cnt = 0;
-	// 	*(uart->base + uarte_startrx) = 1u;
-	// 	hal_cpuDataMemoryBarrier();
-	// }
+	if (ctx->base + uarte_events_endrx) {
+		/* clear endrx event flag */
+		*(ctx->base + uarte_events_endrx) = 0u;
+		ctx->cnt = 0;
+		*(ctx->base + uarte_startrx) = 1u;
+	}
 
 	return 1;
 }
 
-// static int tty_irqHandler(unsigned int n, void *arg)
-// {
-// 	tty_ctx_t *ctx = (tty_ctx_t *)arg;
 
-// 	if (*(ctx->base + isr) & ((1 << 5) | (1 << 3))) {
-// 		/* Clear overrun error bit */
-// 		*(ctx->base + icr) |= (1 << 3);
-
-// 		ctx->rxbuff = *(ctx->base + rdr);
-// 		ctx->rxready = 1;
-// 	}
-
-// 	if (tty_txready(ctx))
-// 		*(ctx->base + cr1) &= ~(1 << 7);
-
-// 	return 1;
-// }
-
-
-// isn't data dbarrier needed here ???
-/* assuming it's ok - implemetation from stm multi */
 static void tty_irqthread(void *arg)
 {
 	tty_ctx_t *ctx = (tty_ctx_t *)arg;
@@ -210,7 +138,6 @@ static void tty_irqthread(void *arg)
 
 	while (1) {
 		mutexLock(ctx->irqlock);
-		// it does not go furtherit waits for condBroadcast?
 		while ((!ctx->rxready && !((libtty_txready(&ctx->tty_common) || keptidle))) || !(*(ctx->base + uarte_enable) & 0x08))
 			condWait(ctx->cond, ctx->irqlock, 0);
 		mutexUnlock(ctx->irqlock);
@@ -226,27 +153,10 @@ static void tty_irqthread(void *arg)
 					keptidle = 1;
 					keepidle(1);
 				}
-
 				ctx->tx_dma[0] = libtty_getchar(&ctx->tty_common, NULL);
-				/* clear flag */
-				*(ctx->base + uarte_events_endtx) = 0u;
-				ctx->cnt = 0;
-				*(ctx->base + uarte_startrx) = 1u;
-				/* enable endtx interrupt */
+				/* enable endtx interrupt and start transmission */
 				*(ctx->base + uarte_intenset) = 0x100;
 				*(ctx->base + uarte_starttx) = 1u;
-
-				/* not sure if should I wait for sending it */
-				// while ( *(uart->base + uarte_events_txstarted) != 1u )
-				// 	;
-				// *(uart->base + uarte_events_txstarted) = 0u;
-
-				// while ( *(uart->base + uarte_events_endtx) != 1u )
-				// 	;
-				// *(uart->base + uarte_events_endtx) = 0u;
-
-				/* enabling tx interrupt, why????*/
-				// *(ctx->base + cr1) |= (1 << 7);
 			}
 		}
 		else if (keptidle) {
@@ -319,8 +229,8 @@ static void _tty_configure(tty_ctx_t *ctx, unsigned char parity, char enable)
 
 	/* Disable all uart interrupts */
 	*(ctx->base + uarte_intenclr) = 0xFFFFFFFF;
-	/* Enable rxdrdy interruts */
-	*(ctx->base + uarte_intenset) = 0x4;
+	/* Enable rxdrdy and endrx interruts */
+	*(ctx->base + uarte_intenset) = 0x14;
 	dataBarier();
 
 	/* Enable uarte instance */
