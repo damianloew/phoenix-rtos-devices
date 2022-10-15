@@ -52,11 +52,7 @@ static ssize_t console_write(const char *str, size_t len, int mode)
 
 static ssize_t console_read(char *str, size_t bufflen, int mode)
 {
-#if CONSOLE_IS_TTY
 	return -ENOSYS;
-#else
-	//return uart_read(UART_CONSOLE - 1, str, bufflen, uart_mnormal, 0);
-#endif
 }
 
 

@@ -1,7 +1,7 @@
 /*
  * Phoenix-RTOS
  *
- * STM32L4/NRF9160 Filesystem driver
+ * STM32L4/nRF9160 Filesystem driver
  *
  * Copyright 2021 Phoenix Systems
  * Author: Maciej Purski

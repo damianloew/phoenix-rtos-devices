@@ -83,6 +83,20 @@ static const int uartConfig[] = { TTY0, TTY1, TTY2, TTY3 };
 static const int uartPos[] = { TTY0_POS, TTY1_POS, TTY2_POS, TTY3_POS };
 
 
+enum { uarte_startrx = 0, uarte_stoprx, uarte_starttx, uarte_stoptx, uarte_flushrx = 11,
+uarte_events_cts = 64, uarte_events_ncts, uarte_events_rxdrdy, uarte_events_endrx = 68, uarte_events_txdrdy = 71, uarte_events_endtx, uarte_events_error, uarte_events_rxto = 81, uarte_events_rxstarted = 83, uarte_events_txstarted, uarte_events_txstopped = 86,
+uarte_inten = 192, uarte_intenset, uarte_intenclr, uarte_errorsrc = 288, uarte_enable = 320, 
+uarte_psel_rts = 322, uarte_psel_txd, uarte_psel_cts, uarte_psel_rxd, uarte_baudrate = 329, 
+uarte_rxd_ptr = 333, uarte_rxd_maxcnt, uarte_rxd_amount, uarte_txd_ptr = 337, uarte_txd_maxcnt, uarte_txd_amount, 
+uarte_config = 347 };
+
+
+enum { baud_9600 = 0x00275000, baud_115200 = 0x01D60000 };
+
+
+enum { uart0 = 0, uart1, uart2, uart3 };
+
+
 static int tty_txready(tty_ctx_t *ctx)
 {
 	int ret;
