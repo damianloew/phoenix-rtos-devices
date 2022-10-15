@@ -58,6 +58,7 @@ typedef struct {
 	int parity;
 	int baud;
 	unsigned int cnt;
+	unsigned char init;
 
 	handle_t cond;
 	handle_t inth;
@@ -98,17 +99,27 @@ enum { tty_parnone = 0, tty_pareven, tty_parodd };
 
 static inline int tty_txready(tty_ctx_t *ctx)
 {
+	int ret;
+
+	ret = ctx->init;
+	/* clear flag if it's first check */
+	if (ret) {
+		ctx->init = 0;
+	} else {
+		ret = *(ctx->base + uarte_events_txdrdy);
+		*(ctx->base + uarte_events_txdrdy) = 0u;
+	}
 	//not working
 	/* clear txdrdy flag if there endtx event has been occurred */
 	// if (*(ctx->base + uarte_events_endtx)) {
 	// 	*(ctx->base + uarte_events_txdrdy) = 0u;
 	// }
-	int ret = *(ctx->base + uarte_events_txdrdy);
-	*(ctx->base + uarte_events_txdrdy) = 0u;
+	// int ret = *(ctx->base + uarte_events_txdrdy);
+	// *(ctx->base + uarte_events_txdrdy) = 0u;
 	
 	/* if endtx event */
 //its 0 checktxdrdy reg!!
-	return ret; //*(ctx->base + uarte_events_txdrdy); //there was endtx before 
+	return ret; //ctx->init ? 1 : ret; //*(ctx->base + uarte_events_txdrdy); //there was endtx before 
 }
 
 
@@ -255,12 +266,12 @@ static void _tty_clearUartEvents(tty_ctx_t *ctx)
 	*(ctx->base + uarte_events_cts) = 0u;
 	*(ctx->base + uarte_events_ncts) = 0u;
 	*(ctx->base + uarte_events_rxdrdy) = 0u;
-	*(ctx->base + uarte_events_endrx) = 0u;
+	// *(ctx->base + uarte_events_endrx) = 0u;
 	*(ctx->base + uarte_events_txdrdy) = 0u;
 	*(ctx->base + uarte_events_endtx) = 0u;
 	*(ctx->base + uarte_events_error) = 0u;
-	*(ctx->base + uarte_events_rxto) = 0u;
-	*(ctx->base + uarte_events_rxstarted) = 0u;
+	// *(ctx->base + uarte_events_rxto) = 0u;
+	// *(ctx->base + uarte_events_rxstarted) = 0u;
 	*(ctx->base + uarte_events_txstarted) = 0u;
 	*(ctx->base + uarte_events_txstopped) = 0u;
 }
@@ -283,7 +294,7 @@ static void _tty_configure(tty_ctx_t *ctx, unsigned char parity, char enable)
 
 	if (parity) {
 		/* Include even parity bit */
-		conf |= 0x7 << 1;
+		*(ctx->base + uarte_config) = (0x7 << 1);
 	}
 	/* TODO: add pins configuartion and selecting them, now it's done in plo
 	I have to ask about it coz can't find gpio configuration in tty/uart/spi drivers for stm */
@@ -308,6 +319,9 @@ static void _tty_configure(tty_ctx_t *ctx, unsigned char parity, char enable)
 	/* clear all events flags */
 	_tty_clearUartEvents(ctx);
 
+	// *(ctx->base + uarte_events_txdrdy) = 1u;
+
+	// *(ctx->base + uarte_events_rxdrdy) = 0u;
 	/* Disable all uart interrupts */
 	*(ctx->base + uarte_intenclr) = 0xFFFFFFFF;
 	// on stm it's when there is some data on rxdrdy
@@ -325,6 +339,56 @@ static void _tty_configure(tty_ctx_t *ctx, unsigned char parity, char enable)
 	ctx->enabled = 1;
 	dataBarier();
 
+	// int err = EOK;
+	// // unsigned int tcr1 = 0;
+	// // char tbits = bits;
+
+	// /* If target uart instance is enabled - disable it before configuration */
+	// if (*(ctx->base + uarte_enable) & 0x08) {
+	// 	*(ctx->base + uarte_enable) = 0u;
+	// 	dataBarier();
+	// }
+	// /* TODO: add pins configuartion and selecting them, now it's done in plo
+	// I have to ask about it coz can't find gpio configuration in tty/uart/spi drivers for stm */
+	// //uart_configPins(minor);
+	// /* Select pins */
+	// // *(ctx->base + uarte_psel_txd) = uartInfo[minor].txpin;
+	// // *(ctx->base + uarte_psel_rxd) = uartInfo[minor].rxpin;
+	// // *(ctx->base + uarte_psel_rts) = uartInfo[minor].rtspin;
+	// // *(ctx->base + uarte_psel_cts) = uartInfo[minor].ctspin;
+
+	// /* Default settings - hardware flow control disabled, exclude parity bit, one stop bit */
+	// /* TODO: add configuration based on args */
+	// *(ctx->base + uarte_config) = 0u;
+
+	// /* Set default max number of bytes in specific buffers */
+	// *(ctx->base + uarte_txd_maxcnt) = 1;
+	// *(ctx->base + uarte_rxd_maxcnt) = UART_RX_DMA_SIZE;
+
+	// /* Set default memory regions for uart dma */
+	// *(ctx->base + uarte_txd_ptr) = (unsigned int)ctx->tx_dma;
+	// *(ctx->base + uarte_rxd_ptr) = (unsigned int)ctx->rx_dma;
+
+	// /* clear rxdrdy flag */
+	// *(ctx->base + uarte_events_rxdrdy) = 0u;
+
+	// /* Disable all uart interrupts */
+	// *(ctx->base + uarte_intenclr) = 0xFFFFFFFF;
+	// // on stm it's when there is some data on rxdrdy
+	// // here rxdrdy and rxto is set - i dont want interrupt when there is timoeut
+	// /* Enable rxdrdy interruts */
+	// *(ctx->base + uarte_intenset) = 0x4;
+	// dataBarier();
+
+	// /* Enable uarte instance */
+	// *(ctx->base + uarte_enable) = 0x8;
+	// dataBarier();
+	// ctx->cnt = 0;
+	// *(ctx->base + uarte_startrx) = 1u;
+	// ctx->enabled = 1;
+	// dataBarier();
+
+	// return err;
 }
 
 
@@ -528,6 +592,7 @@ static const struct {
 		ctx->bits = -1;
 		ctx->parity = -1;
 		ctx->baud = -1;
+		ctx->init = 1;
 
 		/* Set up UART to 115200,8,n,1 16-bit oversampling */
 		_tty_configure(ctx, 1, 1);
