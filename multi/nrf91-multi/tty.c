@@ -250,16 +250,40 @@ static void tty_signalTxReady(void *ctx)
 }
 
 
-static int _tty_configure(tty_ctx_t *ctx, char bits, char parity, char enable)
+static void _tty_clearUartEvents(tty_ctx_t *ctx)
 {
-	int err = EOK;
-	// unsigned int tcr1 = 0;
-	// char tbits = bits;
+	*(ctx->base + uarte_events_cts) = 0u;
+	*(ctx->base + uarte_events_ncts) = 0u;
+	*(ctx->base + uarte_events_rxdrdy) = 0u;
+	*(ctx->base + uarte_events_endrx) = 0u;
+	*(ctx->base + uarte_events_txdrdy) = 0u;
+	*(ctx->base + uarte_events_endtx) = 0u;
+	*(ctx->base + uarte_events_error) = 0u;
+	*(ctx->base + uarte_events_rxto) = 0u;
+	*(ctx->base + uarte_events_rxstarted) = 0u;
+	*(ctx->base + uarte_events_txstarted) = 0u;
+	*(ctx->base + uarte_events_txstopped) = 0u;
+}
+
+
+static void _tty_configure(tty_ctx_t *ctx, unsigned char parity, char enable)
+{
+	unsigned int conf = 0;
+
+	ctx->enabled = 0;
 
 	/* If target uart instance is enabled - disable it before configuration */
 	if (*(ctx->base + uarte_enable) & 0x08) {
 		*(ctx->base + uarte_enable) = 0u;
 		dataBarier();
+	}
+
+	/* Reset config */
+	*(ctx->base + uarte_config) = 0u;
+
+	if (parity) {
+		/* Include even parity bit */
+		conf |= 0x7 << 1;
 	}
 	/* TODO: add pins configuartion and selecting them, now it's done in plo
 	I have to ask about it coz can't find gpio configuration in tty/uart/spi drivers for stm */
@@ -272,7 +296,6 @@ static int _tty_configure(tty_ctx_t *ctx, char bits, char parity, char enable)
 
 	/* Default settings - hardware flow control disabled, exclude parity bit, one stop bit */
 	/* TODO: add configuration based on args */
-	*(ctx->base + uarte_config) = 0u;
 
 	/* Set default max number of bytes in specific buffers */
 	*(ctx->base + uarte_txd_maxcnt) = 1;
@@ -282,8 +305,8 @@ static int _tty_configure(tty_ctx_t *ctx, char bits, char parity, char enable)
 	*(ctx->base + uarte_txd_ptr) = (unsigned int)ctx->tx_dma;
 	*(ctx->base + uarte_rxd_ptr) = (unsigned int)ctx->rx_dma;
 
-	/* clear rxdrdy flag */
-	*(ctx->base + uarte_events_rxdrdy) = 0u;
+	/* clear all events flags */
+	_tty_clearUartEvents(ctx);
 
 	/* Disable all uart interrupts */
 	*(ctx->base + uarte_intenclr) = 0xFFFFFFFF;
@@ -293,6 +316,7 @@ static int _tty_configure(tty_ctx_t *ctx, char bits, char parity, char enable)
 	*(ctx->base + uarte_intenset) = 0x4;
 	dataBarier();
 
+
 	/* Enable uarte instance */
 	*(ctx->base + uarte_enable) = 0x8;
 	dataBarier();
@@ -301,35 +325,24 @@ static int _tty_configure(tty_ctx_t *ctx, char bits, char parity, char enable)
 	ctx->enabled = 1;
 	dataBarier();
 
-	return err;
 }
 
 
 static void tty_setCflag(void *uart, tcflag_t *cflag)
 {
 	tty_ctx_t *ctx = (tty_ctx_t *)uart;
-	char bits, parity = tty_parnone;
-
-	if ((*cflag & CSIZE) == CS6)
-		bits = 6;
-	else if ((*cflag & CSIZE) == CS7)
-		bits = 7;
-	else
-		bits = 8;
+	unsigned char parity = 0;
 
 	if (*cflag & PARENB) {
-		if (*cflag & PARODD)
-			parity = tty_parodd;
-		else
-			parity = tty_pareven;
+		/* There is no possibility to set even/odd parity in nrf uart module */
+		parity = 1;
 	}
 
-	if (bits != ctx->bits || parity != ctx->parity) {
-		_tty_configure(ctx, bits, parity, 1);
+	if (parity != ctx->parity) {
+		_tty_configure(ctx, parity, 1);
 		condSignal(ctx->cond);
 	}
 
-	ctx->bits = bits;
 	ctx->parity = parity;
 }
 
@@ -384,7 +397,6 @@ static void tty_thread(void *arg)
 	pid_t pid;
 	int err;
 	id_t id;
-	// uart_common.port = 0;
 
 	while (1) {
 		while (msgRecv(common_port, &msg, &rid) < 0)
@@ -452,7 +464,6 @@ static void tty_thread(void *arg)
 void tty_log(const char *str)
 {
 #if CONSOLE_IS_TTY
-	//here  it goes
 	libtty_write(&tty_getCtx(0)->tty_common, str, strlen(str), 0);
 #endif
 }
@@ -463,22 +474,9 @@ int tty_init(unsigned int *port)
 #if TTY_CNT != 0
 	unsigned int uart, i;
 	char fname[] = "uartx";
-	// char str[180];
-	int test = 2;
 	oid_t oid;
 	libtty_callbacks_t callbacks;
 	tty_ctx_t *ctx;
-	// static const struct {
-	// 	volatile uint32_t *base;
-	// 	int dev;
-	// 	unsigned irq;
-	// } info[] = {
-	// 	{ (void *)0x40013800, pctl_usart1, usart1_irq },
-	// 	{ (void *)0x40004400, pctl_usart2, usart2_irq },
-	// 	{ (void *)0x40004800, pctl_usart3, usart3_irq },
-	// 	{ (void *)0x40004c00, pctl_uart4, uart4_irq },
-	// 	{ (void *)0x40005000, pctl_uart5, uart5_irq },
-	// };
 
 static const struct {
 	volatile uint32_t *base;
@@ -492,14 +490,6 @@ static const struct {
 	{ (void *)UART3_BASE, UART3_IRQ, (volatile char *)UART3_TX_DMA, (volatile char *)UART3_RX_DMA }
 };
 
-	// sprintf(str, "&uart_common.port = %p\n", &uart_common.port);
-	// debug(str);
-
-	// sprintf(str, "TTY0 = %d, TTY1 = %d, TTY2 = %d, TTY3 = %d, &uartConfig= %p, uartConfig[0] = %d, uartConfig[1] = %d, uartConfig[2] = %d, uartConfig[3] = %d\n", TTY0, TTY1, TTY2, TTY3, uartConfig, uartConfig[0], uartConfig[1], uartConfig[2], uartConfig[3]);
-	// // sprintf(str, "&uartConfig= %p, uartConfig[0] = %d\n", uartConfig, uartConfig[0]);
-	// debug(str);
-
-	test=4;
 	if (port == NULL)
 		portCreate(&uart_common.port);
 	else
@@ -509,7 +499,6 @@ static const struct {
 	common_port = 0;
 #if CONSOLE_IS_TTY
 	oid.id = 0;
-	//there program stops
 	create_dev(&oid, "tty");
 #endif
 
@@ -519,8 +508,6 @@ static const struct {
 
 
 		ctx = &uart_common.ctx[uart];
-
-		// devClk(info[uart - usart1].dev, 1);
 
 		callbacks.arg = ctx;
 		callbacks.set_baudrate = tty_setBaudrate;
@@ -543,7 +530,7 @@ static const struct {
 		ctx->baud = -1;
 
 		/* Set up UART to 115200,8,n,1 16-bit oversampling */
-		_tty_configure(ctx, 8, tty_parnone, 1);
+		_tty_configure(ctx, 1, 1);
 		/* baud rate should be set earlier, before enabling uart */
 		tty_setBaudrate(ctx, B115200);
 		//here
@@ -558,10 +545,10 @@ static const struct {
 
 		fname[sizeof(fname) - 2] = '0' + uart - uart0;
 		oid.id = uart - uart0 + 1;
-		//endless loop
 		create_dev(&oid, fname);
 	}
 
+	/* TODO: ask why we are starting 3 threads here */
 	for (i = 0; i < THREAD_POOL; ++i)
 		beginthread(tty_thread, THREAD_PRIO, uart_common.poolstack[i], sizeof(uart_common.poolstack[i]), (void *)i);
 
