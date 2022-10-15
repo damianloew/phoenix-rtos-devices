@@ -24,6 +24,7 @@
 #include "common.h"
 
 #include "nrf91-multi.h"
+#include "fs.h"
 #include "gpio.h"
 #include "tty.h"
 
@@ -112,11 +113,6 @@ static void thread(void *arg)
 
 int main(void)
 {
-	volatile unsigned int *dirset = 0x50842518;
-	volatile unsigned int *outset = 0x50842508;
-	*dirset = 1u << 2;
-	*outset = 1u << 2;
-
 	int i;
 	oid_t oid;
 	static const char welcome[] = "multidrv: Started\n";

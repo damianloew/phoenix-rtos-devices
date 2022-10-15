@@ -1,18 +1,18 @@
-// /*
-//  * Phoenix-RTOS
-//  *
-//  * STM32L4 Filesystem driver header
-//  *
-//  * Copyright 2021 Phoenix Systems
-//  * Author: Maciej Purski
-//  *
-//  * This file is part of Phoenix-RTOS.
-//  *
-//  * %LICENSE%
-//  */
-// #ifndef FS_H_
-// #define FS_H_
+/*
+ * Phoenix-RTOS
+ *
+ * STM32L4/NRF91 Filesystem driver header
+ *
+ * Copyright 2021 Phoenix Systems
+ * Author: Maciej Purski
+ *
+ * This file is part of Phoenix-RTOS.
+ *
+ * %LICENSE%
+ */
+#ifndef FS_H_
+#define FS_H_
 
-// int fs_init(void);
+int fs_init(void);
 
-// #endif /* FS_H_ */
+#endif /* FS_H_ */
