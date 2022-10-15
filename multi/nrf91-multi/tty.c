@@ -265,17 +265,17 @@ static void tty_signalTxReady(void *ctx)
 
 static void _tty_clearUartEvents(tty_ctx_t *ctx)
 {
-	// *(ctx->base + uarte_events_cts) = 0u;
-	// *(ctx->base + uarte_events_ncts) = 0u;
+	*(ctx->base + uarte_events_cts) = 0u;
+	*(ctx->base + uarte_events_ncts) = 0u;
 	*(ctx->base + uarte_events_rxdrdy) = 0u;
-	// *(ctx->base + uarte_events_endrx) = 0u;
+	*(ctx->base + uarte_events_endrx) = 0u;
 
 	*(ctx->base + uarte_events_txdrdy) = 0u;
-	// *(ctx->base + uarte_events_endtx) = 0u;
-	// *(ctx->base + uarte_events_error) = 0u;
+	*(ctx->base + uarte_events_endtx) = 0u;
+	*(ctx->base + uarte_events_error) = 0u;
 
-	// *(ctx->base + uarte_events_rxto) = 0u;
-	// *(ctx->base + uarte_events_rxstarted) = 0u;
+	*(ctx->base + uarte_events_rxto) = 0u;
+	*(ctx->base + uarte_events_rxstarted) = 0u;
 	*(ctx->base + uarte_events_txstarted) = 0u;
 	*(ctx->base + uarte_events_txstopped) = 0u;
 }
@@ -283,19 +283,15 @@ static void _tty_clearUartEvents(tty_ctx_t *ctx)
 
 static void _tty_configure(tty_ctx_t *ctx, unsigned char parity, char enable)
 {
-	ctx->enabled = 0;
-
-	// /* If target uart instance is enabled - disable it before configuration */
-	// if (*(ctx->base + uarte_enable) & 0x08) {
-	// 	*(ctx->base + uarte_enable) = 0u;
-	// 	dataBarier();
-	// }
 	/* Disable uart instance before initialization */
+	ctx->enabled = 0;
 	*(ctx->base + uarte_enable) = 0u;
 	dataBarier();
 
-	/* Reset config */
+	/* Reset config:
+	   Default settings - hardware flow control disabled, exclude parity bit, one stop bit */
 	*(ctx->base + uarte_config) = 0u;
+	dataBarier();
 
 	if (parity) {
 		/* Include even parity bit */
@@ -310,9 +306,6 @@ static void _tty_configure(tty_ctx_t *ctx, unsigned char parity, char enable)
 	// *(ctx->base + uarte_psel_rts) = uartInfo[minor].rtspin;
 	// *(ctx->base + uarte_psel_cts) = uartInfo[minor].ctspin;
 
-	/* Default settings - hardware flow control disabled, exclude parity bit, one stop bit */
-	/* TODO: add configuration based on args */
-
 	/* Set default max number of bytes in specific buffers */
 	*(ctx->base + uarte_txd_maxcnt) = 1;
 	*(ctx->base + uarte_rxd_maxcnt) = UART_RX_DMA_SIZE;
@@ -321,20 +314,14 @@ static void _tty_configure(tty_ctx_t *ctx, unsigned char parity, char enable)
 	*(ctx->base + uarte_txd_ptr) = (unsigned int)ctx->tx_dma;
 	*(ctx->base + uarte_rxd_ptr) = (unsigned int)ctx->rx_dma;
 
-	/* clear all events flags */
+	/* clear all event flags */
 	_tty_clearUartEvents(ctx);
 
-	// *(ctx->base + uarte_events_txdrdy) = 1u;
-
-	// *(ctx->base + uarte_events_rxdrdy) = 0u;
 	/* Disable all uart interrupts */
 	*(ctx->base + uarte_intenclr) = 0xFFFFFFFF;
-	// on stm it's when there is some data on rxdrdy
-	// here rxdrdy and rxto is set - i dont want interrupt when there is timoeut
 	/* Enable rxdrdy interruts */
 	*(ctx->base + uarte_intenset) = 0x4;
 	dataBarier();
-
 
 	/* Enable uarte instance */
 	*(ctx->base + uarte_enable) = 0x8;
@@ -504,17 +491,25 @@ int tty_init(unsigned int *port)
 	libtty_callbacks_t callbacks;
 	tty_ctx_t *ctx;
 
-static const struct {
-	volatile uint32_t *base;
-	unsigned int irq;
-	volatile char *tx_dma;
-	volatile char *rx_dma;
-} info[] = {
-	{ (void *)UART0_BASE, UART0_IRQ, (volatile char *)UART0_TX_DMA, (volatile char *)UART0_RX_DMA },
-	{ (void *)UART1_BASE, UART1_IRQ, (volatile char *)UART1_TX_DMA, (volatile char *)UART1_RX_DMA },
-	{ (void *)UART2_BASE, UART2_IRQ, (volatile char *)UART2_TX_DMA, (volatile char *)UART2_RX_DMA },
-	{ (void *)UART3_BASE, UART3_IRQ, (volatile char *)UART3_TX_DMA, (volatile char *)UART3_RX_DMA }
-};
+	/* TODO: add pins! */
+	/* Supported configuartions - uart0/uart2 + uart1/uart3
+	   sizes of uart dma memory regions are set to max value of txd_maxcnt/rxd_maxcnt register (8191)
+	   uart0 pins - default uart instance for nrf9160 dk, connected to VCOM0 
+	   uart1 pins -second uart interface on nrf9160 dk called nRF91_UART_2 on the board's schematic
+	   uart0 dma - ram7: section 2 and 3
+	   uart1 dma - ram7: section 0 and 1 */
+
+	static const struct {
+		volatile uint32_t *base;
+		unsigned int irq;
+		volatile char *tx_dma;
+		volatile char *rx_dma;
+	} info[] = {
+		{ (void *)0x50008000, uarte0 + 16, (volatile char *)0x2003C000, (volatile char *)0x20038000 },
+		{ (void *)0x50009000, uarte1 + 16, (volatile char *)0x20038000, (volatile char *)0x2003A000 },
+		{ (void *)0x5000A000, uarte2 + 16, (volatile char *)0x2003C000, (volatile char *)0x20038000 },
+		{ (void *)0x5000B000, uarte3 + 16, (volatile char *)0x20038000, (volatile char *)0x2003A000 }
+	};
 
 	if (port == NULL)
 		portCreate(&uart_common.port);
@@ -556,13 +551,11 @@ static const struct {
 		ctx->baud = -1;
 		ctx->init = 1;
 
-		/* Set up UART to 115200,8,n,1 16-bit oversampling */
+		/* Set up UART to 115200, with parity checking disabled */
 		_tty_configure(ctx, 0, 1);
-		/* baud rate should be set earlier, before enabling uart */
+		/* TODO: add support for other br values */
 		tty_setBaudrate(ctx, B115200);
-		//here
 
-		/* don't see info irq*/
 		interrupt(info[uart - uart0].irq, tty_irqHandler, (void *)ctx, ctx->cond, NULL);
 
 		/* is stack initilized*/
